@@ -1,4 +1,4 @@
-package org.usfirst.frc.team3476.robot;
+package org.usfirst.frc.team3476.utility;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -7,7 +7,13 @@ import java.io.IOException;
 import java.util.Scanner;
 
 import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.Joystick;
+import edu.wpi.first.wpilibj.GenericHID.Hand;
+import edu.wpi.first.wpilibj.Joystick.AxisType;
+import edu.wpi.first.wpilibj.Joystick.ButtonType;
+import edu.wpi.first.wpilibj.hal.HAL;
+import edu.wpi.first.wpilibj.hal.FRCNetComm.tResourceType;
 
 /**
  * This class stores the int sent back from the Driver Station and uses it to check for rising or falling edges
@@ -74,8 +80,8 @@ public class Controller extends Joystick {
 	 * 		Falling edge state of the button
 	 */
 	public boolean getFallingEdge(int button) {
-		boolean oldVal = ((0x1 << (button - 1)) & oldButtons) != 0;
-		boolean currentVal = ((0x1 << (button - 1)) & currentButtons) != 0;
+		boolean oldVal = getButtonState(button, oldButtons);
+		boolean currentVal = getButtonState(button, currentButtons);
 		if (oldVal == true && currentVal == false) {
 			return true;
 		} else {
@@ -92,8 +98,8 @@ public class Controller extends Joystick {
 	 * 		Rising edge state of the button
 	 */
 	public boolean getRisingEdge(int button) {
-		boolean oldVal = ((0x1 << (button - 1)) & oldButtons) != 0;
-		boolean currentVal = ((0x1 << (button - 1)) & currentButtons) != 0;
+		boolean oldVal = getButtonState(button, oldButtons);
+		boolean currentVal = getButtonState(button, currentButtons);
 		if (oldVal == false && currentVal == true) {
 			return true;
 		} else {
@@ -131,113 +137,114 @@ public class Controller extends Joystick {
 	 * This method needs to be called for each iteration of the teleop loop
 	 */
 	public void update() {
-		if(play) {
-			if(player.update() != 0) {
+		if (play) {
+			if (player.update() != 0) {
 				stopPlay();
 				return;
 			}
 			currentButtons = player.getButtons();
 			currentAxis = player.getAxis();
-			currentPOV = player.getPOV();			
+			currentPOV = player.getPOV();
 		} else {
 			oldButtons = currentButtons;
 			currentButtons = DriverStation.getInstance().getStickButtons(getPort());
-			if(axisCount != DriverStation.getInstance().getStickAxisCount(getPort())){
+			if (axisCount != DriverStation.getInstance().getStickAxisCount(getPort())) {
 				axisCount = DriverStation.getInstance().getStickAxisCount(getPort());
 				oldAxis = new double[axisCount];
 				currentAxis = new double[axisCount];
 			}
-			if(povCount != DriverStation.getInstance().getStickPOVCount(getPort())){
+			if (povCount != DriverStation.getInstance().getStickPOVCount(getPort())) {
 				povCount = DriverStation.getInstance().getStickPOVCount(getPort());
 				oldPOV = new int[povCount];
 				currentPOV = new int[povCount];
 			}
 			oldAxis = currentAxis;
 			for (int i = 0; i < axisCount; i++) {
-				currentAxis[i] = super.getRawAxis(i);
+				currentAxis[i] = DriverStation.getInstance().getStickAxis(getPort(), i);
 			}
-			
+
 			oldPOV = currentPOV;
 			for (int i = 0; i < povCount; i++) {
-				currentPOV[i] = super.getPOV(i);
+				currentPOV[i] = DriverStation.getInstance().getStickPOV(getPort(), i);
 			}
-			if(record) {
+			if (record) {
 				recorder.record(currentButtons, currentAxis, currentPOV);
 			}
 		}
 	}
-	
+
 	public void setRecord(String filename) {
 		record = true;
 		recorder = new InputRecorder(filename);
 	}
-	
+
 	public void stopRecord() {
-		record = false;		
+		record = false;
 		recorder.stop();
 	}
-	
+
 	public void setPlay(String filename) {
 		play = true;
 		player = new InputPlayer(filename);
 	}
-	
+
 	public void stopPlay() {
 		play = false;
 	}
-	
+
 	public static class InputPlayer {
-		
+
 		private Scanner scanner;
-		private int currentButtons;
-		private double[] currentAxis;
-		private int[] currentPOV;
-		
+		private int buttons;
+		private double[] axis;
+		private int[] POV;
+
 		public InputPlayer(String filename) {
 			try {
 				scanner = new Scanner(new File("/home/lvuser/" + filename + ".csv"));
 			} catch (FileNotFoundException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			scanner.useDelimiter(",|\\n");			
+			scanner.useDelimiter(",|\\n");
 		}
-		
+
 		public int update() {
-			if(scanner.hasNext()) {					
-				currentButtons = scanner.nextInt();
+			if (scanner.hasNext()) {
+				buttons = scanner.nextInt();
 				int axisLength = scanner.nextInt();
-				for(int i = 0; i < axisLength; i++) {
-					currentAxis[i] = scanner.nextDouble();
+				axis = new double[axisLength];
+				for (int i = 0; i < axisLength; i++) {
+					axis[i] = scanner.nextDouble();
 				}
 				int povLength = scanner.nextInt();
-				for(int i = 0; i < povLength; i++) {
-					currentPOV[i] = scanner.nextInt();
+				POV = new int[povLength];
+				for (int i = 0; i < povLength; i++) {
+					POV[i] = scanner.nextInt();
 				}
 			} else {
 				return -1;
 			}
 			return 0;
 		}
-		
+
 		public int getButtons() {
-			return currentButtons;
+			return buttons;
 		}
-		
+
 		public double[] getAxis() {
-			return currentAxis;
+			return axis;
 		}
-		
+
 		public int[] getPOV() {
-			return currentPOV;
+			return POV;
 		}
-		
+
 	}
-	
+
 	public static class InputRecorder {
 
 		private FileWriter writer;
-		
+
 		public InputRecorder(String filename) {
 			try {
 				writer = new FileWriter("/home/lvuser/" + filename + ".csv");
@@ -245,18 +252,18 @@ public class Controller extends Joystick {
 				e.printStackTrace();
 			}
 		}
-		
+
 		public void record(int currentButtons, double[] currentAxis, int[] currentPOV) {
 			try {
 				String buttons = String.valueOf(currentButtons);
 				writer.append(buttons);
 				writer.append("," + String.valueOf(currentAxis.length));
-				for(int i = 0; i < currentAxis.length; i++) {
+				for (int i = 0; i < currentAxis.length; i++) {
 					writer.append("," + String.valueOf(currentAxis[i]));
 				}
 				writer.append("," + String.valueOf(currentPOV.length));
-				for(int i = 0; i < currentPOV.length; i++) {
-						writer.append("," + String.valueOf(currentPOV[i]));				
+				for (int i = 0; i < currentPOV.length; i++) {
+					writer.append("," + String.valueOf(currentPOV[i]));
 				}
 				writer.append("\n");
 				writer.flush();
@@ -264,7 +271,7 @@ public class Controller extends Joystick {
 				e.printStackTrace();
 			}
 		}
-		
+
 		public void stop() {
 			try {
 				writer.close();
@@ -273,4 +280,30 @@ public class Controller extends Joystick {
 			}
 		}
 	}
+
+	@Override
+	public boolean getRawButton(int button) {
+		return getButtonState(button, currentButtons);
+	}
+
+	@Override
+	public double getRawAxis(int axis) {
+		if (axis <= axisCount && axis > 0) {
+			return currentAxis[axis];
+		}
+		return 0;
+	}
+
+	@Override
+	public int getPOV(int pov) {
+		if (pov <= povCount && pov > 0) {
+			return currentPOV[pov];
+		}
+		return 0;
+	}
+	
+	public boolean getButtonState(int button, int state) {
+		return ((0x1 << (button - 1)) & state) != 0;
+	}
+
 }

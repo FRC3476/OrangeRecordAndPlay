@@ -202,10 +202,10 @@ public class Controller extends Joystick {
 		public InputPlayer(String filename) {
 			try {
 				scanner = new Scanner(new File("/home/lvuser/" + filename + ".csv"));
+				scanner.useDelimiter(",|\\n");
 			} catch (FileNotFoundException e) {
 				e.printStackTrace();
 			}
-			scanner.useDelimiter(",|\\n");
 		}
 
 		public int update() {
